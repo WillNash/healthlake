@@ -1,0 +1,6 @@
+record_id,nhi_number,dob,sex,ethnicity,diagnosis_date,histology_code,stage_figo,laterality,primary_surgery,surgery_date,surgery_type,chemo_yn,chemo_start_date,chemo_regimen,recurrence_date,status,notes
+1,ZZZ1001,1965-03-12,1,1,2024-02-15,8441/3,III,3,1,2024-02-28,tah_bso,1,2024-03-20,carboplatin-paclitaxel,,1,Synthetic test record - not real patient data
+2,ZZZ1002,1958-07-04,1,2,2024-04-10,8460/3,IV,3,0,,,,,,2024-11-01,2,Synthetic test record - not real patient data
+3,ZZZ1003,1972-11-22,1,1,2023-09-18,8441/3,I,1,1,2023-10-05,staging,1,2023-11-01,carboplatin-paclitaxel,,1,Synthetic test record - not real patient data
+4,ZZZ1004,1980-05-30,1,3,2024-06-01,8380/3,II,2,1,2024-06-15,cytoreduction,1,2024-07-10,carboplatin-paclitaxel,,1,Synthetic test record - not real patient data
+5,ZZZ1005,1944-09-14,1,4,2024-08-20,8460/3,IV,3,0,,,0,,,, 2,Synthetic test record - not real patient data

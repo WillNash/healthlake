@@ -1,7 +1,104 @@
 data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
-# ── import_launcher Lambda role ──────────────────────────────────────────────
+locals {
+  # Extract the role name from the ARN for use in aws_iam_role_policy resources.
+  healthlake_role_name = regex("([^/]+)$", var.healthlake_data_access_role_arn)[0]
+}
+
+# ── csv_to_fhir_mapper Lambda role ───────────────────────────────────────────
+
+resource "aws_iam_role" "csv_to_fhir_mapper" {
+  name = "${var.project_name}-${var.environment}-csv-to-fhir-mapper"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "LambdaTrust"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "csv_to_fhir_mapper" {
+  name = "csv-to-fhir-mapper-inline"
+  role = aws_iam_role.csv_to_fhir_mapper.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadLandingCSV"
+        Effect = "Allow"
+        Action = ["s3:GetObject"]
+        Resource = ["${var.landing_bucket_arn}/*"]
+      },
+      {
+        Sid    = "WriteFHIRStaging"
+        Effect = "Allow"
+        Action = ["s3:PutObject"]
+        Resource = ["${aws_s3_bucket.fhir_staging.arn}/*"]
+      },
+      {
+        Sid    = "KMS"
+        Effect = "Allow"
+        Action = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Resource = [var.kms_key_arn]
+      },
+      {
+        Sid    = "Logs"
+        Effect = "Allow"
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = ["arn:aws:logs:*:*:*"]
+      },
+      {
+        Sid    = "DLQ"
+        Effect = "Allow"
+        Action = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.lambda_dlq.arn]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "csv_to_fhir_mapper_vpc" {
+  role       = aws_iam_role.csv_to_fhir_mapper.name
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+}
+
+# ── HealthLake data access role: fhir_staging read ───────────────────────────
+# HealthLake reads from fhir_staging when executing the import job. The data
+# access role is created in the persistence module; this policy extends it.
+
+resource "aws_iam_role_policy" "healthlake_fhir_staging_access" {
+  name = "${var.project_name}-${var.environment}-hl-fhir-staging"
+  role = local.healthlake_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "ReadFHIRStaging"
+        Effect = "Allow"
+        Action = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          aws_s3_bucket.fhir_staging.arn,
+          "${aws_s3_bucket.fhir_staging.arn}/*",
+        ]
+      },
+      {
+        Sid    = "KMSDecrypt"
+        Effect = "Allow"
+        Action = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Resource = [var.kms_key_arn]
+      }
+    ]
+  })
+}
+
+# ── import_launcher Lambda role ───────────────────────────────────────────────
 
 resource "aws_iam_role" "import_launcher" {
   name = "${var.project_name}-${var.environment}-import-launcher"
@@ -25,9 +122,9 @@ resource "aws_iam_role_policy" "import_launcher" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "StartImport"
-        Effect = "Allow"
-        Action = ["healthlake:StartFHIRImportJob"]
+        Sid      = "StartImport"
+        Effect   = "Allow"
+        Action   = ["healthlake:StartFHIRImportJob"]
         Resource = [var.datastore_arn]
       },
       {
@@ -37,7 +134,7 @@ resource "aws_iam_role_policy" "import_launcher" {
         Resource = ["arn:aws:s3:::${var.import_output_bucket_name}/*"]
       },
       {
-        Sid    = "KMSImportOutput"
+        Sid    = "KMS"
         Effect = "Allow"
         Action = ["kms:GenerateDataKey", "kms:Decrypt"]
         Resource = [var.kms_key_arn]
@@ -45,11 +142,7 @@ resource "aws_iam_role_policy" "import_launcher" {
       {
         Sid    = "Logs"
         Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
@@ -91,19 +184,15 @@ resource "aws_iam_role_policy" "import_poller" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "DescribeImport"
-        Effect = "Allow"
-        Action = ["healthlake:DescribeFHIRImportJob"]
+        Sid      = "DescribeImport"
+        Effect   = "Allow"
+        Action   = ["healthlake:DescribeFHIRImportJob"]
         Resource = [var.datastore_arn]
       },
       {
         Sid    = "Logs"
         Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
@@ -156,19 +245,15 @@ resource "aws_iam_role_policy" "comprehend_processor" {
         Resource = ["*"]
       },
       {
-        Sid    = "HealthLakeWrite"
-        Effect = "Allow"
-        Action = ["healthlake:CreateResource"]
+        Sid      = "HealthLakeWrite"
+        Effect   = "Allow"
+        Action   = ["healthlake:CreateResource"]
         Resource = [var.datastore_arn]
       },
       {
         Sid    = "Logs"
         Effect = "Allow"
-        Action = [
-          "logs:CreateLogGroup",
-          "logs:CreateLogStream",
-          "logs:PutLogEvents"
-        ]
+        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
@@ -219,6 +304,7 @@ resource "aws_iam_role_policy" "sfn" {
         Effect = "Allow"
         Action = ["lambda:InvokeFunction"]
         Resource = [
+          aws_lambda_function.csv_to_fhir_mapper.arn,
           aws_lambda_function.import_launcher.arn,
           aws_lambda_function.import_poller.arn,
           aws_lambda_function.comprehend_processor.arn,
@@ -232,9 +318,9 @@ resource "aws_iam_role_policy" "sfn" {
         Resource = [var.kms_key_arn]
       },
       {
-        Sid    = "SNSPublish"
-        Effect = "Allow"
-        Action = ["sns:Publish"]
+        Sid      = "SNSPublish"
+        Effect   = "Allow"
+        Action   = ["sns:Publish"]
         Resource = [aws_sns_topic.import_failures.arn]
       },
       {
@@ -281,9 +367,9 @@ resource "aws_iam_role_policy" "events_to_sfn" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid    = "StartSFN"
-      Effect = "Allow"
-      Action = ["states:StartExecution"]
+      Sid      = "StartSFN"
+      Effect   = "Allow"
+      Action   = ["states:StartExecution"]
       Resource = [aws_sfn_state_machine.import_orchestrator.arn]
     }]
   })

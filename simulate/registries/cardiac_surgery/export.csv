@@ -1,0 +1,6 @@
+record_id,nhi_number,dob,sex,operation_date,procedure_type,procedure_code,surgeon_id,priority,euroscore2,bypass_time_mins,los_days,mortality_30d,readmission_30d,discharge_destination,complications
+1,ZZZ2001,1952-06-18,2,2024-03-10,cabg,232717009,HPI00001,1,2.4,78,7,0,0,1,Synthetic test record - not real patient data
+2,ZZZ2002,1948-11-24,2,2024-03-15,avr,65205006,HPI00001,1,4.1,95,10,0,1,2,Synthetic test record - not real patient data
+3,ZZZ2003,1965-04-07,1,2024-04-02,mvr,71371000,HPI00002,2,6.8,112,14,0,0,1,Synthetic test record - not real patient data
+4,ZZZ2004,1945-02-28,2,2024-04-20,cabg,232717009,HPI00001,1,1.8,65,6,0,0,1,Synthetic test record - not real patient data
+5,ZZZ2005,1958-08-16,1,2024-05-05,tavr,450566007,HPI00003,2,8.3,0,5,0,0,1,Synthetic test record - not real patient data

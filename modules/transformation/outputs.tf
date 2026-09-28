@@ -8,6 +8,11 @@ output "sfn_state_machine_name" {
   value       = aws_sfn_state_machine.import_orchestrator.name
 }
 
+output "csv_to_fhir_mapper_lambda_arn" {
+  description = "ARN of the csv_to_fhir_mapper Lambda function."
+  value       = aws_lambda_function.csv_to_fhir_mapper.arn
+}
+
 output "import_launcher_lambda_arn" {
   description = "ARN of the import_launcher Lambda function."
   value       = aws_lambda_function.import_launcher.arn
@@ -28,7 +33,7 @@ output "import_failures_sns_arn" {
   value       = aws_sns_topic.import_failures.arn
 }
 
-output "dta_profile_ssm_parameter_name" {
-  description = "Name of the SSM SecureString parameter that stores the DTA profile ID."
-  value       = aws_ssm_parameter.dta_profile_id.name
+output "fhir_staging_bucket_name" {
+  description = "Name of the S3 bucket that holds FHIR NDJSON between csv_to_fhir_mapper and the HealthLake import job."
+  value       = aws_s3_bucket.fhir_staging.bucket
 }

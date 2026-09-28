@@ -71,11 +71,10 @@ variable "export_schedule_expression" {
   default     = "cron(0 2 * * ? *)"
 }
 
-variable "dta_profile_id" {
-  type        = string
-  description = "Data Transformation Agent CSV profile ID. Leave empty string until the profile has been created out-of-band."
-  default     = ""
-  sensitive   = true
+variable "registry_map" {
+  type        = map(string)
+  description = "Map of REDCap project IDs to registry names. Populate once live project IDs are known (e.g. {\"1001\" = \"ovarian_cancer\"})."
+  default     = {}
 }
 
 variable "comprehend_free_text_fields" {

@@ -68,11 +68,10 @@ variable "healthlake_data_access_role_arn" {
   description = "ARN of the IAM role that HealthLake assumes when reading input data and writing import output."
 }
 
-variable "dta_profile_id" {
-  type        = string
-  description = "Data Transformation Agent CSV profile ID. Set to empty string before the profile is created; populate after manual out-of-band profile creation."
-  default     = ""
-  sensitive   = true
+variable "registry_map" {
+  type        = map(string)
+  description = "Map of REDCap project IDs to registry names (e.g. {\"1001\" = \"ovarian_cancer\"}). Used by csv_to_fhir_mapper to dispatch to the correct mapping module. Leave empty when using simulation paths."
+  default     = {}
 }
 
 variable "comprehend_free_text_fields" {

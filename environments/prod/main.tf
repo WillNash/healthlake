@@ -176,7 +176,7 @@ module "transformation" {
   landing_bucket_arn                  = module.ingestion.landing_bucket_arn
   import_output_bucket_name           = module.persistence.import_output_bucket_name
   healthlake_data_access_role_arn     = module.persistence.healthlake_data_access_role_arn
-  dta_profile_id                      = var.dta_profile_id
+  registry_map                        = var.registry_map
   comprehend_free_text_fields         = var.comprehend_free_text_fields
   analytics_export_trigger_lambda_arn = module.analytics.export_chain_trigger_lambda_arn
 }
