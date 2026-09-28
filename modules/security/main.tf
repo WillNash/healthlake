@@ -240,20 +240,11 @@ resource "aws_cloudtrail" "main" {
   s3_bucket_name                = aws_s3_bucket.cloudtrail.id
   s3_key_prefix                 = "cloudtrail"
   kms_key_id                    = aws_kms_key.main.arn
-  is_multi_region_trail         = true
-  include_global_service_events = true
+  is_multi_region_trail         = false
+  include_global_service_events = false
   enable_log_file_validation    = true
   cloud_watch_logs_group_arn    = "${aws_cloudwatch_log_group.cloudtrail.arn}:*"
   cloud_watch_logs_role_arn     = aws_iam_role.cloudtrail.arn
-
-  event_selector {
-    read_write_type           = "All"
-    include_management_events = true
-    data_resource {
-      type   = "AWS::S3::Object"
-      values = ["arn:aws:s3:::*"]
-    }
-  }
 
   tags = {
     Name        = "${local.name_prefix}-trail"

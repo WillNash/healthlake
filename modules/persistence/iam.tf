@@ -50,18 +50,6 @@ data "aws_iam_policy_document" "healthlake_data_access_inline" {
   }
 
   statement {
-    sid    = "AllowComprehendMedical"
-    effect = "Allow"
-    actions = [
-      "comprehendmedical:DetectEntitiesV2",
-      "comprehendmedical:InferICD10CM",
-      "comprehendmedical:InferRxNorm",
-      "comprehendmedical:InferSNOMEDCT",
-    ]
-    resources = ["*"]
-  }
-
-  statement {
     sid    = "AllowKmsForBuckets"
     effect = "Allow"
     actions = [
