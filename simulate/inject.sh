@@ -7,6 +7,7 @@
 # Examples:
 #   ./simulate/inject.sh ovarian_cancer clinical-registry-dev-landing-abc123
 #   ./simulate/inject.sh cardiac_surgery clinical-registry-dev-landing-abc123
+#   ./simulate/inject.sh heartland_hf clinical-registry-dev-landing-abc123
 #
 # The landing bucket name is available from Terraform:
 #   terraform -chdir=environments/dev output landing_bucket_name
@@ -16,8 +17,7 @@
 #   2. Step Functions execution starts (import-orchestrator state machine)
 #   3. csv_to_fhir_mapper Lambda reads the CSV and writes FHIR NDJSON to fhir-staging
 #   4. import_launcher Lambda starts a HealthLake FHIR import job
-#   5. import_poller Lambda polls until COMPLETED
-#   6. Analytics export is triggered
+#   5. import_poller Lambda polls until COMPLETED or FAILED
 #
 # Monitor progress:
 #   aws stepfunctions list-executions \
@@ -31,7 +31,7 @@ BUCKET="${2:-}"
 
 if [[ -z "$REGISTRY" || -z "$BUCKET" ]]; then
   echo "Usage: $0 <registry> <landing-bucket-name>"
-  echo "  registries: ovarian_cancer, cardiac_surgery"
+  echo "  registries: ovarian_cancer, cardiac_surgery, heartland_hf"
   exit 1
 fi
 
