@@ -74,13 +74,3 @@ variable "registry_map" {
   default     = {}
 }
 
-variable "comprehend_free_text_fields" {
-  type        = list(string)
-  description = "List of REDCap field names whose values are processed by Comprehend Medical. Empty list disables Comprehend processing."
-  default     = []
-}
-
-variable "analytics_export_trigger_lambda_arn" {
-  type        = string
-  description = "ARN of the analytics module export_chain_trigger Lambda. The transformation Step Functions state machine invokes this Lambda in its COMPLETED branch."
-}

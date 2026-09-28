@@ -2,11 +2,10 @@ data "aws_caller_identity" "current" {}
 data "aws_region" "current" {}
 
 locals {
-  # Extract the role name from the ARN for use in aws_iam_role_policy resources.
   healthlake_role_name = regex("([^/]+)$", var.healthlake_data_access_role_arn)[0]
 }
 
-# ── csv_to_fhir_mapper Lambda role ───────────────────────────────────────────
+# ── csv_to_fhir_mapper ────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "csv_to_fhir_mapper" {
   name = "${var.project_name}-${var.environment}-csv-to-fhir-mapper"
@@ -30,33 +29,33 @@ resource "aws_iam_role_policy" "csv_to_fhir_mapper" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ReadLandingCSV"
-        Effect = "Allow"
-        Action = ["s3:GetObject"]
+        Sid      = "ReadLandingCSV"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
         Resource = ["${var.landing_bucket_arn}/*"]
       },
       {
-        Sid    = "WriteFHIRStaging"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
+        Sid      = "WriteFHIRStaging"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
         Resource = ["${aws_s3_bucket.fhir_staging.arn}/*"]
       },
       {
-        Sid    = "KMS"
-        Effect = "Allow"
-        Action = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Sid      = "KMS"
+        Effect   = "Allow"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
         Resource = [var.kms_key_arn]
       },
       {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "Logs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
-        Sid    = "DLQ"
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
+        Sid      = "DLQ"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
         Resource = [aws_sqs_queue.lambda_dlq.arn]
       }
     ]
@@ -68,9 +67,8 @@ resource "aws_iam_role_policy_attachment" "csv_to_fhir_mapper_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# ── HealthLake data access role: fhir_staging read ───────────────────────────
-# HealthLake reads from fhir_staging when executing the import job. The data
-# access role is created in the persistence module; this policy extends it.
+# ── HealthLake data access role: fhir_staging read ────────────────────────────
+# HealthLake reads NDJSON from fhir_staging during the import job.
 
 resource "aws_iam_role_policy" "healthlake_fhir_staging_access" {
   name = "${var.project_name}-${var.environment}-hl-fhir-staging"
@@ -80,25 +78,22 @@ resource "aws_iam_role_policy" "healthlake_fhir_staging_access" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ReadFHIRStaging"
-        Effect = "Allow"
-        Action = ["s3:GetObject", "s3:ListBucket"]
-        Resource = [
-          aws_s3_bucket.fhir_staging.arn,
-          "${aws_s3_bucket.fhir_staging.arn}/*",
-        ]
+        Sid      = "ReadFHIRStaging"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [aws_s3_bucket.fhir_staging.arn, "${aws_s3_bucket.fhir_staging.arn}/*"]
       },
       {
-        Sid    = "KMSDecrypt"
-        Effect = "Allow"
-        Action = ["kms:Decrypt", "kms:GenerateDataKey"]
+        Sid      = "KMSDecrypt"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
         Resource = [var.kms_key_arn]
       }
     ]
   })
 }
 
-# ── import_launcher Lambda role ───────────────────────────────────────────────
+# ── import_launcher ───────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "import_launcher" {
   name = "${var.project_name}-${var.environment}-import-launcher"
@@ -128,27 +123,27 @@ resource "aws_iam_role_policy" "import_launcher" {
         Resource = [var.datastore_arn]
       },
       {
-        Sid    = "WriteImportOutput"
-        Effect = "Allow"
-        Action = ["s3:PutObject"]
+        Sid      = "WriteImportOutput"
+        Effect   = "Allow"
+        Action   = ["s3:PutObject"]
         Resource = ["arn:aws:s3:::${var.import_output_bucket_name}/*"]
       },
       {
-        Sid    = "KMS"
-        Effect = "Allow"
-        Action = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Sid      = "KMS"
+        Effect   = "Allow"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
         Resource = [var.kms_key_arn]
       },
       {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "Logs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
-        Sid    = "DLQ"
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
+        Sid      = "DLQ"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
         Resource = [aws_sqs_queue.lambda_dlq.arn]
       }
     ]
@@ -160,7 +155,7 @@ resource "aws_iam_role_policy_attachment" "import_launcher_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# ── import_poller Lambda role ─────────────────────────────────────────────────
+# ── import_poller ─────────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "import_poller" {
   name = "${var.project_name}-${var.environment}-import-poller"
@@ -190,15 +185,15 @@ resource "aws_iam_role_policy" "import_poller" {
         Resource = [var.datastore_arn]
       },
       {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Sid      = "Logs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
         Resource = ["arn:aws:logs:*:*:*"]
       },
       {
-        Sid    = "DLQ"
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
+        Sid      = "DLQ"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
         Resource = [aws_sqs_queue.lambda_dlq.arn]
       }
     ]
@@ -210,68 +205,7 @@ resource "aws_iam_role_policy_attachment" "import_poller_vpc" {
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
-# ── comprehend_processor Lambda role ─────────────────────────────────────────
-
-resource "aws_iam_role" "comprehend_processor" {
-  name = "${var.project_name}-${var.environment}-comprehend-processor"
-
-  assume_role_policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [{
-      Sid       = "LambdaTrust"
-      Effect    = "Allow"
-      Principal = { Service = "lambda.amazonaws.com" }
-      Action    = "sts:AssumeRole"
-    }]
-  })
-}
-
-resource "aws_iam_role_policy" "comprehend_processor" {
-  name = "comprehend-processor-inline"
-  role = aws_iam_role.comprehend_processor.id
-
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "ComprehendMedical"
-        Effect = "Allow"
-        Action = [
-          "comprehendmedical:DetectEntitiesV2",
-          "comprehendmedical:InferICD10CM",
-          "comprehendmedical:InferRxNorm",
-          "comprehendmedical:InferSNOMEDCT"
-        ]
-        Resource = ["*"]
-      },
-      {
-        Sid      = "HealthLakeWrite"
-        Effect   = "Allow"
-        Action   = ["healthlake:CreateResource"]
-        Resource = [var.datastore_arn]
-      },
-      {
-        Sid    = "Logs"
-        Effect = "Allow"
-        Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
-        Resource = ["arn:aws:logs:*:*:*"]
-      },
-      {
-        Sid    = "DLQ"
-        Effect = "Allow"
-        Action = ["sqs:SendMessage"]
-        Resource = [aws_sqs_queue.lambda_dlq.arn]
-      }
-    ]
-  })
-}
-
-resource "aws_iam_role_policy_attachment" "comprehend_processor_vpc" {
-  role       = aws_iam_role.comprehend_processor.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
-# ── Step Functions role ───────────────────────────────────────────────────────
+# ── Step Functions ────────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "sfn" {
   name = "${var.project_name}-${var.environment}-transformation-sfn"
@@ -284,9 +218,7 @@ resource "aws_iam_role" "sfn" {
       Principal = { Service = "states.amazonaws.com" }
       Action = "sts:AssumeRole"
       Condition = {
-        StringEquals = {
-          "aws:SourceAccount" = data.aws_caller_identity.current.account_id
-        }
+        StringEquals = { "aws:SourceAccount" = data.aws_caller_identity.current.account_id }
       }
     }]
   })
@@ -307,14 +239,12 @@ resource "aws_iam_role_policy" "sfn" {
           aws_lambda_function.csv_to_fhir_mapper.arn,
           aws_lambda_function.import_launcher.arn,
           aws_lambda_function.import_poller.arn,
-          aws_lambda_function.comprehend_processor.arn,
-          var.analytics_export_trigger_lambda_arn
         ]
       },
       {
-        Sid    = "KMS"
-        Effect = "Allow"
-        Action = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Sid      = "KMS"
+        Effect   = "Allow"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
         Resource = [var.kms_key_arn]
       },
       {
@@ -336,7 +266,7 @@ resource "aws_iam_role_policy" "sfn" {
           "logs:ListLogDeliveries",
           "logs:PutResourcePolicy",
           "logs:DescribeResourcePolicies",
-          "logs:DescribeLogGroups"
+          "logs:DescribeLogGroups",
         ]
         Resource = ["*"]
       }
@@ -344,7 +274,7 @@ resource "aws_iam_role_policy" "sfn" {
   })
 }
 
-# ── EventBridge → SFN role ────────────────────────────────────────────────────
+# ── EventBridge → SFN ─────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "events_to_sfn" {
   name = "${var.project_name}-${var.environment}-events-to-sfn"

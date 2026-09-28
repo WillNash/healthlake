@@ -1,6 +1,6 @@
 # ── S3: FHIR staging bucket ───────────────────────────────────────────────────
 # Holds FHIR NDJSON written by csv_to_fhir_mapper, consumed by HealthLake import.
-# Transient — objects expire after 14 days once imported.
+# Transient — objects expire after 14 days.
 
 resource "aws_s3_bucket" "fhir_staging" {
   bucket_prefix = "${var.project_name}-${var.environment}-fhir-staging-"
@@ -8,15 +8,11 @@ resource "aws_s3_bucket" "fhir_staging" {
 
 resource "aws_s3_bucket_versioning" "fhir_staging" {
   bucket = aws_s3_bucket.fhir_staging.id
-
-  versioning_configuration {
-    status = "Enabled"
-  }
+  versioning_configuration { status = "Enabled" }
 }
 
 resource "aws_s3_bucket_server_side_encryption_configuration" "fhir_staging" {
   bucket = aws_s3_bucket.fhir_staging.id
-
   rule {
     apply_server_side_encryption_by_default {
       sse_algorithm     = "aws:kms"
@@ -27,8 +23,7 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "fhir_staging" {
 }
 
 resource "aws_s3_bucket_public_access_block" "fhir_staging" {
-  bucket = aws_s3_bucket.fhir_staging.id
-
+  bucket                  = aws_s3_bucket.fhir_staging.id
   block_public_acls       = true
   block_public_policy     = true
   ignore_public_acls      = true
@@ -55,9 +50,7 @@ resource "aws_s3_bucket_policy" "fhir_staging" {
         Principal = "*"
         Action    = "s3:PutObject"
         Resource  = "${aws_s3_bucket.fhir_staging.arn}/*"
-        Condition = {
-          StringNotEquals = { "s3:x-amz-server-side-encryption" = "aws:kms" }
-        }
+        Condition = { StringNotEquals = { "s3:x-amz-server-side-encryption" = "aws:kms" } }
       },
     ]
   })
@@ -71,11 +64,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "fhir_staging" {
   rule {
     id     = "expire-ndjson"
     status = "Enabled"
-
     filter { prefix = "fhir-ndjson/" }
-
     expiration { days = 14 }
-
     noncurrent_version_expiration { noncurrent_days = 7 }
   }
 }
@@ -93,11 +83,11 @@ resource "aws_sns_topic_policy" "import_failures" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [{
-      Sid    = "AllowSFNPublish"
-      Effect = "Allow"
+      Sid       = "AllowSFNPublish"
+      Effect    = "Allow"
       Principal = { Service = "states.amazonaws.com" }
-      Action   = "sns:Publish"
-      Resource = aws_sns_topic.import_failures.arn
+      Action    = "sns:Publish"
+      Resource  = aws_sns_topic.import_failures.arn
     }]
   })
 }
@@ -105,9 +95,9 @@ resource "aws_sns_topic_policy" "import_failures" {
 # ── SQS: shared Lambda DLQ ───────────────────────────────────────────────────
 
 resource "aws_sqs_queue" "lambda_dlq" {
-  name                       = "${var.project_name}-${var.environment}-transformation-dlq"
-  kms_master_key_id          = var.kms_key_arn
-  message_retention_seconds  = 1209600 # 14 days
+  name                      = "${var.project_name}-${var.environment}-transformation-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600
 }
 
 # ── CloudWatch Log Groups ─────────────────────────────────────────────────────
@@ -136,13 +126,7 @@ resource "aws_cloudwatch_log_group" "import_poller" {
   retention_in_days = 90
 }
 
-resource "aws_cloudwatch_log_group" "comprehend_processor" {
-  name              = "/aws/lambda/${var.project_name}-${var.environment}-comprehend-processor"
-  kms_key_id        = var.kms_key_arn
-  retention_in_days = 90
-}
-
-# ── Lambda archive files ──────────────────────────────────────────────────────
+# ── Lambda archives ───────────────────────────────────────────────────────────
 
 data "archive_file" "csv_to_fhir_mapper" {
   type        = "zip"
@@ -160,12 +144,6 @@ data "archive_file" "import_poller" {
   type        = "zip"
   source_file = "${path.module}/lambda/import_poller/handler.py"
   output_path = "${path.module}/lambda/import_poller/handler.zip"
-}
-
-data "archive_file" "comprehend_processor" {
-  type        = "zip"
-  source_file = "${path.module}/lambda/comprehend_processor/handler.py"
-  output_path = "${path.module}/lambda/comprehend_processor/handler.zip"
 }
 
 # ── Lambda: csv_to_fhir_mapper ────────────────────────────────────────────────
@@ -220,10 +198,10 @@ resource "aws_lambda_function" "import_launcher" {
 
   environment {
     variables = {
-      DATASTORE_ID          = var.datastore_id
-      IMPORT_OUTPUT_BUCKET  = var.import_output_bucket_name
-      KMS_KEY_ARN           = var.kms_key_arn
-      DATA_ACCESS_ROLE_ARN  = var.healthlake_data_access_role_arn
+      DATASTORE_ID         = var.datastore_id
+      IMPORT_OUTPUT_BUCKET = var.import_output_bucket_name
+      KMS_KEY_ARN          = var.kms_key_arn
+      DATA_ACCESS_ROLE_ARN = var.healthlake_data_access_role_arn
     }
   }
 
@@ -270,45 +248,11 @@ resource "aws_lambda_function" "import_poller" {
   depends_on = [aws_cloudwatch_log_group.import_poller]
 }
 
-# ── Lambda: comprehend_processor ──────────────────────────────────────────────
-
-resource "aws_lambda_function" "comprehend_processor" {
-  function_name    = "${var.project_name}-${var.environment}-comprehend-processor"
-  role             = aws_iam_role.comprehend_processor.arn
-  runtime          = "python3.12"
-  architectures    = ["arm64"]
-  handler          = "handler.lambda_handler"
-  filename         = data.archive_file.comprehend_processor.output_path
-  source_code_hash = data.archive_file.comprehend_processor.output_base64sha256
-  timeout          = 300
-  kms_key_arn      = var.kms_key_arn
-
-  environment {
-    variables = {
-      DATASTORE_ENDPOINT = var.datastore_endpoint
-      FREE_TEXT_FIELDS   = jsonencode(var.comprehend_free_text_fields)
-      KMS_KEY_ARN        = var.kms_key_arn
-      DATASTORE_ID       = var.datastore_id
-    }
-  }
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
-  }
-
-  dead_letter_config {
-    target_arn = aws_sqs_queue.lambda_dlq.arn
-  }
-
-  depends_on = [aws_cloudwatch_log_group.comprehend_processor]
-}
-
-# ── EventBridge rule: S3 landing CSV ─────────────────────────────────────────
+# ── EventBridge: S3 landing CSV → Step Functions ──────────────────────────────
 
 resource "aws_cloudwatch_event_rule" "s3_landing_csv" {
   name        = "${var.project_name}-${var.environment}-s3-landing-csv"
-  description = "Triggers import orchestrator when a REDCap CSV lands in the landing bucket."
+  description = "Fires when a REDCap CSV lands in the landing bucket."
 
   event_pattern = jsonencode({
     source        = ["aws.s3"]
@@ -347,7 +291,7 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
   }
 
   definition = jsonencode({
-    Comment = "Convert REDCap CSV to FHIR NDJSON, import into HealthLake, then trigger analytics export."
+    Comment = "Convert REDCap CSV to FHIR NDJSON and import into HealthLake."
     StartAt = "MapCSVToFHIR"
     States = {
 
@@ -423,7 +367,7 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
           {
             Variable     = "$.poll_result.Payload.status"
             StringEquals = "COMPLETED"
-            Next         = "ProcessWithComprehend"
+            Next         = "ImportComplete"
           },
           {
             Variable     = "$.poll_result.Payload.status"
@@ -432,41 +376,6 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
           }
         ]
         Default = "WaitForImport"
-      }
-
-      ProcessWithComprehend = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
-        Parameters = {
-          FunctionName = aws_lambda_function.comprehend_processor.arn
-          "Payload.$"  = "$.poll_result.Payload"
-        }
-        ResultPath = "$.comprehend_result"
-        Catch = [{
-          # Comprehend failure is non-fatal — proceed to analytics export
-          ErrorEquals = ["States.ALL"]
-          Next        = "TriggerAnalyticsExport"
-          ResultPath  = "$.comprehend_error"
-        }]
-        Next = "TriggerAnalyticsExport"
-      }
-
-      TriggerAnalyticsExport = {
-        Type     = "Task"
-        Resource = "arn:aws:states:::lambda:invoke"
-        Parameters = {
-          FunctionName = var.analytics_export_trigger_lambda_arn
-          Payload = {
-            datastore_id = var.datastore_id
-          }
-        }
-        ResultPath = "$.analytics_trigger_result"
-        Catch = [{
-          ErrorEquals = ["States.ALL"]
-          Next        = "NotifyFailure"
-          ResultPath  = "$.error"
-        }]
-        Next = "ImportComplete"
       }
 
       ImportComplete = {

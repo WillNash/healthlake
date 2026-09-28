@@ -23,11 +23,6 @@ output "import_poller_lambda_arn" {
   value       = aws_lambda_function.import_poller.arn
 }
 
-output "comprehend_processor_lambda_arn" {
-  description = "ARN of the comprehend_processor Lambda function."
-  value       = aws_lambda_function.comprehend_processor.arn
-}
-
 output "import_failures_sns_arn" {
   description = "ARN of the SNS topic that receives import failure notifications."
   value       = aws_sns_topic.import_failures.arn

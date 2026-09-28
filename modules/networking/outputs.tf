@@ -4,7 +4,7 @@ output "vpc_id" {
 }
 
 output "private_subnet_ids" {
-  description = "List of private subnet IDs. Pass to Lambda vpc_config, SageMaker domain, and VPC endpoint subnet_ids."
+  description = "List of private subnet IDs. Pass to Lambda vpc_config and VPC endpoint subnet_ids."
   value       = tolist([for s in aws_subnet.private : s.id])
 }
 
@@ -14,18 +14,8 @@ output "public_subnet_ids" {
 }
 
 output "lambda_security_group_id" {
-  description = "ID of the Lambda security group. Attach to all Lambda functions deployed in this VPC."
+  description = "ID of the Lambda security group."
   value       = aws_security_group.lambda.id
-}
-
-output "sagemaker_security_group_id" {
-  description = "ID of the SageMaker security group. Attach to the SageMaker domain default_user_settings."
-  value       = aws_security_group.sagemaker.id
-}
-
-output "vpc_endpoint_security_group_id" {
-  description = "ID of the VPC endpoint security group. Reference when attaching additional workloads to endpoint SG."
-  value       = aws_security_group.vpc_endpoints.id
 }
 
 output "flow_log_group_arn" {
