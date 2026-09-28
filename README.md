@@ -373,6 +373,7 @@ dta-findings.md             Research on AWS HealthLake Data Transformation Agent
 | Document | Contents |
 |---|---|
 | [`pipeline-flow.md`](pipeline-flow.md) | Step-by-step trace of a CSV through the pipeline |
+| [`sm-input-size-constraints.md`](sm-input-size-constraints.md) | Input size limits at each pipeline layer and how to raise them |
 | [`dta-findings.md`](dta-findings.md) | Research on the HealthLake DTA — current Preview status, CSV support, quotas |
 | [`simulate/registries/heartland_hf/mapping_spec.md`](simulate/registries/heartland_hf/mapping_spec.md) | HEARTLAND HF field → FHIR mapping reference |
 | [`simulate/registries/ovarian_cancer/mapping_spec.md`](simulate/registries/ovarian_cancer/mapping_spec.md) | Ovarian cancer registry mapping spec |
