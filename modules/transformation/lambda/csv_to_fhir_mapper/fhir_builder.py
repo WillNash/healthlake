@@ -15,11 +15,12 @@ _SEX_MAP = {
 }
 
 
-def patient(nhi: str, dob: str = None, sex_code: str = None) -> dict:
+def patient(nhi: str, dob: str = None, sex_code: str = None, identifier_system: str = None) -> dict:
+    system = identifier_system if identifier_system is not None else NHI_SYSTEM
     r = {
         "resourceType": "Patient",
         "id": f"patient-{nhi.upper()}",
-        "identifier": [{"system": NHI_SYSTEM, "value": nhi.upper()}],
+        "identifier": [{"system": system, "value": nhi.upper()}],
     }
     if dob:
         r["birthDate"] = dob

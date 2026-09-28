@@ -6,7 +6,7 @@ import os
 from datetime import datetime, timezone
 
 REGISTRY_MAP = json.loads(os.environ.get("REGISTRY_MAP", "{}"))
-_KNOWN = frozenset(["ovarian_cancer", "cardiac_surgery"])
+_KNOWN = frozenset(["ovarian_cancer", "cardiac_surgery", "heartland_hf"])
 
 
 def lambda_handler(event, context):
@@ -75,6 +75,9 @@ def _get_mapping_fn(registry: str):
         return map_row
     if registry == "cardiac_surgery":
         from mappings.cardiac_surgery import map_row
+        return map_row
+    if registry == "heartland_hf":
+        from mappings.heartland_hf import map_row
         return map_row
     raise ValueError(
         f"No mapping found for registry: {registry!r}. "
