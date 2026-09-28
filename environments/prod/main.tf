@@ -5,28 +5,12 @@ module "security" {
   environment  = "prod"
 }
 
-module "networking" {
-  source = "../../modules/networking"
-
-  project_name         = var.project_name
-  environment          = "prod"
-  aws_region           = var.aws_region
-  vpc_cidr             = var.vpc_cidr
-  private_subnet_cidrs = var.private_subnet_cidrs
-  public_subnet_cidrs  = var.public_subnet_cidrs
-  enable_nat_gateway   = var.enable_nat_gateway
-  kms_key_arn          = module.security.kms_key_arn
-}
-
 module "ingestion" {
   source = "../../modules/ingestion"
 
   project_name               = var.project_name
   environment                = "prod"
   kms_key_arn                = module.security.kms_key_arn
-  vpc_id                     = module.networking.vpc_id
-  private_subnet_ids         = module.networking.private_subnet_ids
-  lambda_security_group_id   = module.networking.lambda_security_group_id
   redcap_url                 = var.redcap_url
   redcap_project_id          = var.redcap_project_id
   export_schedule_expression = var.export_schedule_expression
@@ -51,9 +35,6 @@ module "transformation" {
   project_name                    = var.project_name
   environment                     = "prod"
   kms_key_arn                     = module.security.kms_key_arn
-  vpc_id                          = module.networking.vpc_id
-  private_subnet_ids              = module.networking.private_subnet_ids
-  lambda_security_group_id        = module.networking.lambda_security_group_id
   datastore_id                    = module.persistence.datastore_id
   datastore_endpoint              = module.persistence.datastore_endpoint
   datastore_arn                   = module.persistence.datastore_arn

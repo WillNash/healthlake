@@ -18,21 +18,6 @@ variable "kms_key_arn" {
   description = "ARN of the CMK from the security module used for S3, SQS, Lambda, and Secrets Manager encryption."
 }
 
-variable "vpc_id" {
-  type        = string
-  description = "ID of the VPC in which the Lambda function will run."
-}
-
-variable "private_subnet_ids" {
-  type        = list(string)
-  description = "List of private subnet IDs for the Lambda VPC configuration."
-}
-
-variable "lambda_security_group_id" {
-  type        = string
-  description = "ID of the security group to attach to the Lambda function."
-}
-
 variable "redcap_url" {
   type        = string
   description = "Base URL of the REDCap instance (e.g. https://redcap.example.com). Must not include a trailing slash or /api/index.php path."

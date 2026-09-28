@@ -62,11 +62,6 @@ resource "aws_iam_role_policy" "csv_to_fhir_mapper" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "csv_to_fhir_mapper_vpc" {
-  role       = aws_iam_role.csv_to_fhir_mapper.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
 # ── HealthLake data access role: fhir_staging read ────────────────────────────
 # HealthLake reads NDJSON from fhir_staging during the import job.
 
@@ -150,11 +145,6 @@ resource "aws_iam_role_policy" "import_launcher" {
   })
 }
 
-resource "aws_iam_role_policy_attachment" "import_launcher_vpc" {
-  role       = aws_iam_role.import_launcher.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
-}
-
 # ── import_poller ─────────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "import_poller" {
@@ -198,11 +188,6 @@ resource "aws_iam_role_policy" "import_poller" {
       }
     ]
   })
-}
-
-resource "aws_iam_role_policy_attachment" "import_poller_vpc" {
-  role       = aws_iam_role.import_poller.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
 }
 
 # ── Step Functions ────────────────────────────────────────────────────────────

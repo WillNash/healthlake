@@ -217,10 +217,6 @@ resource "aws_lambda_function" "redcap_exporter" {
     }
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
-  }
 }
 
 resource "aws_lambda_function_event_invoke_config" "redcap_exporter" {

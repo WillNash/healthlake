@@ -61,9 +61,9 @@ resource "aws_iam_role_policy" "redcap_exporter_inline" {
   policy = data.aws_iam_policy_document.redcap_exporter_inline.json
 }
 
-resource "aws_iam_role_policy_attachment" "redcap_exporter_vpc_access" {
+resource "aws_iam_role_policy_attachment" "redcap_exporter_basic_execution" {
   role       = aws_iam_role.redcap_exporter.name
-  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaVPCAccessExecutionRole"
+  policy_arn = "arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
 }
 
 # ---------------------------------------------------------------------------

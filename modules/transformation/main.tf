@@ -169,11 +169,6 @@ resource "aws_lambda_function" "csv_to_fhir_mapper" {
     }
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
-  }
-
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -205,11 +200,6 @@ resource "aws_lambda_function" "import_launcher" {
     }
   }
 
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
-  }
-
   dead_letter_config {
     target_arn = aws_sqs_queue.lambda_dlq.arn
   }
@@ -234,11 +224,6 @@ resource "aws_lambda_function" "import_poller" {
     variables = {
       DATASTORE_ID = var.datastore_id
     }
-  }
-
-  vpc_config {
-    subnet_ids         = var.private_subnet_ids
-    security_group_ids = [var.lambda_security_group_id]
   }
 
   dead_letter_config {

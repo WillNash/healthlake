@@ -18,21 +18,6 @@ variable "kms_key_arn" {
   description = "ARN of the KMS CMK used to encrypt Lambda environment variables, SQS, SNS, Step Functions, and CloudWatch log groups."
 }
 
-variable "vpc_id" {
-  type        = string
-  description = "VPC ID in which Lambda functions are deployed."
-}
-
-variable "private_subnet_ids" {
-  type        = list(string)
-  description = "Private subnet IDs for Lambda VPC attachment."
-}
-
-variable "lambda_security_group_id" {
-  type        = string
-  description = "Security group ID applied to all VPC-attached Lambda functions."
-}
-
 variable "datastore_id" {
   type        = string
   description = "HealthLake FHIR R4 datastore ID."
