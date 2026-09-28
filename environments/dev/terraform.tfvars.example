@@ -1,0 +1,65 @@
+# ---------------------------------------------------------------------------
+# environments/dev/terraform.tfvars.example
+#
+# Copy this file to terraform.tfvars and fill in the values below.
+# Do NOT commit terraform.tfvars to version control — it may contain
+# sensitive values. Add it to .gitignore.
+#
+# Required variables (no defaults):
+# ---------------------------------------------------------------------------
+
+aws_region        = "ap-southeast-2"
+# redcap_url      = "https://redcap.example.com"   # sensitive — set via TF_VAR_redcap_url or -var flag
+# redcap_project_id = "42"                          # sensitive — set via TF_VAR_redcap_project_id or -var flag
+
+# ---------------------------------------------------------------------------
+# Optional — override defaults where needed in dev
+# ---------------------------------------------------------------------------
+
+project_name = "clinical-registry"
+
+vpc_cidr = "10.0.0.0/16"
+
+private_subnet_cidrs = {
+  a = "10.0.1.0/24"
+  b = "10.0.2.0/24"
+}
+
+public_subnet_cidrs = {
+  a = "10.0.101.0/24"
+  b = "10.0.102.0/24"
+}
+
+# NAT Gateways are disabled in dev — VPC endpoints cover all AWS API calls.
+enable_nat_gateway = false
+
+export_schedule_expression = "cron(0 2 * * ? *)"
+
+# Fill in after creating a DTA profile out-of-band; leave empty until then.
+# dta_profile_id = ""   # sensitive — set via TF_VAR_dta_profile_id or -var flag
+
+# Uncomment and list REDCap field names to enable Comprehend Medical processing.
+# comprehend_free_text_fields = ["notes", "clinical_history"]
+
+enable_guardduty   = true
+enable_macie       = true
+enable_securityhub = true
+
+# Dev uses 2 workers to minimise Glue DPU cost.
+glue_worker_count = 2
+
+# Additional IAM roles to grant Lake Formation SELECT/DESCRIBE access.
+# additional_analyst_role_arns = ["arn:aws:iam::123456789012:role/analyst"]
+
+# Set to true only on first apply in a new account.
+create_quicksight_subscription = false
+
+# Required when create_quicksight_subscription = true.
+# notification_email = "admin@example.com"
+
+# SageMaker is disabled by default in dev.
+enable_sagemaker = false
+
+# sagemaker_users = {
+#   alice = { execution_role_arn = "" }
+# }
