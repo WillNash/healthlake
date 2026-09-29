@@ -190,6 +190,60 @@ resource "aws_iam_role_policy" "import_poller" {
   })
 }
 
+# ── check_import_failures ─────────────────────────────────────────────────────
+
+resource "aws_iam_role" "check_import_failures" {
+  name = "${var.project_name}-${var.environment}-check-import-failures"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [{
+      Sid       = "LambdaTrust"
+      Effect    = "Allow"
+      Principal = { Service = "lambda.amazonaws.com" }
+      Action    = "sts:AssumeRole"
+    }]
+  })
+}
+
+resource "aws_iam_role_policy" "check_import_failures" {
+  name = "check-import-failures-inline"
+  role = aws_iam_role.check_import_failures.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "ReadImportOutput"
+        Effect   = "Allow"
+        Action   = ["s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::${var.import_output_bucket_name}",
+          "arn:aws:s3:::${var.import_output_bucket_name}/*",
+        ]
+      },
+      {
+        Sid      = "KMS"
+        Effect   = "Allow"
+        Action   = ["kms:Decrypt"]
+        Resource = [var.kms_key_arn]
+      },
+      {
+        Sid      = "Logs"
+        Effect   = "Allow"
+        Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
+        Resource = ["arn:aws:logs:*:*:*"]
+      },
+      {
+        Sid      = "DLQ"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = [aws_sqs_queue.lambda_dlq.arn]
+      }
+    ]
+  })
+}
+
 # ── Step Functions ────────────────────────────────────────────────────────────
 
 resource "aws_iam_role" "sfn" {
@@ -224,6 +278,7 @@ resource "aws_iam_role_policy" "sfn" {
           aws_lambda_function.csv_to_fhir_mapper.arn,
           aws_lambda_function.import_launcher.arn,
           aws_lambda_function.import_poller.arn,
+          aws_lambda_function.check_import_failures.arn,
         ]
       },
       {
@@ -237,6 +292,14 @@ resource "aws_iam_role_policy" "sfn" {
         Effect   = "Allow"
         Action   = ["sns:Publish"]
         Resource = [aws_sns_topic.import_failures.arn]
+      },
+      {
+        Sid    = "WriteWatermark"
+        Effect = "Allow"
+        Action = ["ssm:PutParameter"]
+        Resource = [
+          "arn:aws:ssm:${data.aws_region.current.name}:${data.aws_caller_identity.current.account_id}:parameter/pipeline/${var.project_name}/${var.environment}/*"
+        ]
       },
       {
         Sid    = "CloudWatchLogs"

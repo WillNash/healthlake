@@ -4,15 +4,14 @@ import os
 
 
 def lambda_handler(event, context):
-    """
-    Starts a HealthLake FHIR import job against the NDJSON produced by csv_to_fhir_mapper.
-    Input: mapper output dict {fhir_bucket, fhir_key, registry, ...}
-    ClientToken is derived from fhir_key for idempotent retries.
-    """
     fhir_bucket = event["fhir_bucket"]
     fhir_key = event["fhir_key"]
     registry = event.get("registry", "unknown")
-    client_token = hashlib.md5(fhir_key.encode()).hexdigest()
+    retry_attempt = event.get("retry_attempt", 0)
+
+    # Include retry_attempt in the token so each attempt produces a distinct HealthLake job.
+    token_seed = fhir_key if retry_attempt == 0 else f"{fhir_key}-retry-{retry_attempt}"
+    client_token = hashlib.md5(token_seed.encode()).hexdigest()
 
     hl = boto3.client("healthlake")
     resp = hl.start_fhir_import_job(
@@ -31,5 +30,7 @@ def lambda_handler(event, context):
     return {
         "job_id": resp["JobId"],
         "fhir_key": fhir_key,
+        "fhir_bucket": fhir_bucket,
         "registry": registry,
+        "retry_attempt": retry_attempt,
     }

@@ -126,6 +126,12 @@ resource "aws_cloudwatch_log_group" "import_poller" {
   retention_in_days = 90
 }
 
+resource "aws_cloudwatch_log_group" "check_import_failures" {
+  name              = "/aws/lambda/${var.project_name}-${var.environment}-check-import-failures"
+  kms_key_id        = var.kms_key_arn
+  retention_in_days = 90
+}
+
 # ── Lambda archives ───────────────────────────────────────────────────────────
 
 data "archive_file" "csv_to_fhir_mapper" {
@@ -144,6 +150,12 @@ data "archive_file" "import_poller" {
   type        = "zip"
   source_file = "${path.module}/lambda/import_poller/handler.py"
   output_path = "${path.module}/lambda/import_poller/handler.zip"
+}
+
+data "archive_file" "check_import_failures" {
+  type        = "zip"
+  source_file = "${path.module}/lambda/check_import_failures/handler.py"
+  output_path = "${path.module}/lambda/check_import_failures/handler.zip"
 }
 
 # ── Lambda: csv_to_fhir_mapper ────────────────────────────────────────────────
@@ -231,6 +243,32 @@ resource "aws_lambda_function" "import_poller" {
   }
 
   depends_on = [aws_cloudwatch_log_group.import_poller]
+}
+
+# ── Lambda: check_import_failures ─────────────────────────────────────────────
+
+resource "aws_lambda_function" "check_import_failures" {
+  function_name    = "${var.project_name}-${var.environment}-check-import-failures"
+  role             = aws_iam_role.check_import_failures.arn
+  runtime          = "python3.12"
+  architectures    = ["arm64"]
+  handler          = "handler.lambda_handler"
+  filename         = data.archive_file.check_import_failures.output_path
+  source_code_hash = data.archive_file.check_import_failures.output_base64sha256
+  timeout          = 60
+  kms_key_arn      = var.kms_key_arn
+
+  environment {
+    variables = {
+      IMPORT_OUTPUT_BUCKET = var.import_output_bucket_name
+    }
+  }
+
+  dead_letter_config {
+    target_arn = aws_sqs_queue.lambda_dlq.arn
+  }
+
+  depends_on = [aws_cloudwatch_log_group.check_import_failures]
 }
 
 # ── EventBridge: S3 landing CSV → Step Functions ──────────────────────────────
@@ -352,7 +390,7 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
           {
             Variable     = "$.poll_result.Payload.status"
             StringEquals = "COMPLETED"
-            Next         = "ImportComplete"
+            Next         = "WriteWatermark"
           },
           {
             Variable     = "$.poll_result.Payload.status"
@@ -361,6 +399,181 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
           }
         ]
         Default = "WaitForImport"
+      }
+
+      WriteWatermark = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::aws-sdk:ssm:putParameter"
+        Parameters = {
+          "Name.$" = "States.Format('/pipeline/${var.project_name}/${var.environment}/{}/bulk_complete_at', $.poll_result.Payload.registry)"
+          "Value.$" = "$$.State.EnteredTime"
+          Type      = "String"
+          Overwrite = true
+        }
+        ResultPath = null
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NotifyFailure"
+          ResultPath  = "$.error"
+        }]
+        Next = "CheckResourceFailures"
+      }
+
+      # ── Per-resource failure check (first attempt) ──────────────────────────
+
+      CheckResourceFailures = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.check_import_failures.arn
+          Payload = {
+            "job_id.$"      = "$.poll_result.Payload.job_id"
+            "fhir_bucket.$" = "$.mapper_result.Payload.fhir_bucket"
+            "fhir_key.$"    = "$.mapper_result.Payload.fhir_key"
+            "registry.$"    = "$.poll_result.Payload.registry"
+            retry_attempt   = 0
+          }
+        }
+        ResultPath = "$.failure_result"
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NotifyFailure"
+          ResultPath  = "$.error"
+        }]
+        Next = "ResourceFailureDecision"
+      }
+
+      ResourceFailureDecision = {
+        Type = "Choice"
+        Choices = [
+          {
+            Variable      = "$.failure_result.Payload.has_failures"
+            BooleanEquals = false
+            Next          = "ImportComplete"
+          },
+          {
+            And = [
+              { Variable = "$.failure_result.Payload.has_failures", BooleanEquals = true },
+              { Variable = "$.failure_result.Payload.retry_attempt", NumericEquals = 0 }
+            ]
+            Next = "RetryImportJob"
+          }
+        ]
+        Default = "NotifyResourceFailures"
+      }
+
+      # ── Retry: re-import the same NDJSON (idempotent, different ClientToken) ─
+
+      RetryImportJob = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.import_launcher.arn
+          Payload = {
+            "fhir_bucket.$"   = "$.failure_result.Payload.fhir_bucket"
+            "fhir_key.$"      = "$.failure_result.Payload.fhir_key"
+            "registry.$"      = "$.failure_result.Payload.registry"
+            "retry_attempt.$" = "States.MathAdd($.failure_result.Payload.retry_attempt, 1)"
+          }
+        }
+        ResultPath = "$.retry_import_result"
+        Retry = [{
+          ErrorEquals     = ["Lambda.ServiceException", "Lambda.AWSLambdaException", "Lambda.SdkClientException", "Lambda.TooManyRequestsException"]
+          IntervalSeconds = 2
+          MaxAttempts     = 3
+          BackoffRate     = 2
+        }]
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NotifyFailure"
+          ResultPath  = "$.error"
+        }]
+        Next = "WaitForRetry"
+      }
+
+      WaitForRetry = {
+        Type    = "Wait"
+        Seconds = 60
+        Next    = "PollRetryStatus"
+      }
+
+      PollRetryStatus = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.import_poller.arn
+          "Payload.$"  = "$.retry_import_result.Payload"
+        }
+        ResultPath = "$.retry_poll_result"
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NotifyFailure"
+          ResultPath  = "$.error"
+        }]
+        Next = "CheckRetryStatus"
+      }
+
+      CheckRetryStatus = {
+        Type = "Choice"
+        Choices = [
+          {
+            Variable     = "$.retry_poll_result.Payload.status"
+            StringEquals = "COMPLETED"
+            Next         = "CheckRetryFailures"
+          },
+          {
+            Variable     = "$.retry_poll_result.Payload.status"
+            StringEquals = "FAILED"
+            Next         = "NotifyFailure"
+          }
+        ]
+        Default = "WaitForRetry"
+      }
+
+      # ── Per-resource failure check (after retry) ────────────────────────────
+
+      CheckRetryFailures = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::lambda:invoke"
+        Parameters = {
+          FunctionName = aws_lambda_function.check_import_failures.arn
+          Payload = {
+            "job_id.$"      = "$.retry_poll_result.Payload.job_id"
+            "fhir_bucket.$" = "$.failure_result.Payload.fhir_bucket"
+            "fhir_key.$"    = "$.failure_result.Payload.fhir_key"
+            "registry.$"    = "$.failure_result.Payload.registry"
+            retry_attempt   = 1
+          }
+        }
+        ResultPath = "$.retry_failure_result"
+        Catch = [{
+          ErrorEquals = ["States.ALL"]
+          Next        = "NotifyFailure"
+          ResultPath  = "$.error"
+        }]
+        Next = "RetryFailureDecision"
+      }
+
+      RetryFailureDecision = {
+        Type = "Choice"
+        Choices = [
+          {
+            Variable      = "$.retry_failure_result.Payload.has_failures"
+            BooleanEquals = false
+            Next          = "ImportComplete"
+          }
+        ]
+        Default = "NotifyResourceFailures"
+      }
+
+      NotifyResourceFailures = {
+        Type     = "Task"
+        Resource = "arn:aws:states:::sns:publish"
+        Parameters = {
+          TopicArn    = aws_sns_topic.import_failures.arn
+          "Message.$" = "States.JsonToString($)"
+        }
+        Next = "ImportComplete"
       }
 
       ImportComplete = {
