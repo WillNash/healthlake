@@ -62,8 +62,9 @@ resource "aws_iam_role_policy" "csv_to_fhir_mapper" {
   })
 }
 
-# ── HealthLake data access role: fhir_staging read ────────────────────────────
-# HealthLake reads NDJSON from fhir_staging during the import job.
+# ── HealthLake data access role ───────────────────────────────────────────────
+# HealthLake assumes this role to read NDJSON from fhir_staging and write
+# import job output to import_output.
 
 resource "aws_iam_role_policy" "healthlake_fhir_staging_access" {
   name = "${var.project_name}-${var.environment}-hl-fhir-staging"
@@ -79,10 +80,36 @@ resource "aws_iam_role_policy" "healthlake_fhir_staging_access" {
         Resource = [aws_s3_bucket.fhir_staging.arn, "${aws_s3_bucket.fhir_staging.arn}/*"]
       },
       {
-        Sid      = "KMSDecrypt"
+        Sid      = "KMSDecryptStaging"
         Effect   = "Allow"
         Action   = ["kms:Decrypt", "kms:GenerateDataKey"]
         Resource = [var.kms_key_arn]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "healthlake_import_output_access" {
+  name = "${var.project_name}-${var.environment}-hl-import-output"
+  role = local.healthlake_role_name
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid    = "WriteImportOutput"
+        Effect = "Allow"
+        Action = ["s3:PutObject", "s3:GetObject", "s3:ListBucket"]
+        Resource = [
+          "arn:aws:s3:::${var.import_output_bucket_name}",
+          "arn:aws:s3:::${var.import_output_bucket_name}/*",
+        ]
+      },
+      {
+        Sid      = "HealthLakeKMS"
+        Effect   = "Allow"
+        Action   = ["kms:DescribeKey", "kms:GenerateDataKey", "kms:Decrypt"]
+        Resource = [var.healthlake_kms_key_arn]
       }
     ]
   })
