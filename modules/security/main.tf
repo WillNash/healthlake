@@ -35,7 +35,7 @@ resource "aws_kms_key" "main" {
         Sid       = "CloudWatchLogsAccess"
         Effect    = "Allow"
         Principal = { Service = "logs.${local.region}.amazonaws.com" }
-        Action    = ["kms:GenerateDataKey", "kms:Decrypt", "kms:DescribeKey"]
+        Action    = ["kms:Encrypt*", "kms:Decrypt*", "kms:ReEncrypt*", "kms:GenerateDataKey*", "kms:Describe*"]
         Resource  = "*"
         Condition = {
           ArnLike = {
