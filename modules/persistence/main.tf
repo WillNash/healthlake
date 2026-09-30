@@ -219,19 +219,6 @@ resource "aws_s3_bucket_public_access_block" "import_output" {
   restrict_public_buckets = true
 }
 
-resource "aws_s3_bucket_object_lock_configuration" "import_output" {
-  bucket = aws_s3_bucket.import_output.id
-
-  rule {
-    default_retention {
-      mode  = "GOVERNANCE"
-      years = 1
-    }
-  }
-
-  depends_on = [aws_s3_bucket_versioning.import_output]
-}
-
 resource "aws_s3_bucket_policy" "import_output" {
   bucket = aws_s3_bucket.import_output.id
   policy = data.aws_iam_policy_document.import_output_bucket_policy.json
