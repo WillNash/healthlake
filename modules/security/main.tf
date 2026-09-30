@@ -25,6 +25,18 @@ resource "aws_kms_key" "main" {
         Resource  = "*"
       },
       {
+        Sid       = "CloudTrailAccess"
+        Effect    = "Allow"
+        Principal = { Service = "cloudtrail.amazonaws.com" }
+        Action    = ["kms:GenerateDataKey*", "kms:DescribeKey"]
+        Resource  = "*"
+        Condition = {
+          StringLike = {
+            "kms:EncryptionContext:aws:cloudtrail:arn" = "arn:aws:cloudtrail:*:${local.account_id}:trail/*"
+          }
+        }
+      },
+      {
         Sid       = "HealthLakeAccess"
         Effect    = "Allow"
         Principal = { Service = "healthlake.amazonaws.com" }
