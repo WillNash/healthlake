@@ -33,7 +33,7 @@ EventBridge Scheduler fires the `redcap_exporter` Lambda on the configured cron
 ### Inside the Lambda (`modules/ingestion/lambda/redcap_exporter/handler.py`)
 
 1. Retrieves the REDCap API token from Secrets Manager
-   (`/<project_name>/<env>/redcap-api-token`).
+   (`/<project_name>/<env>/redcap-api-token/<registry_name>`).
 
 2. POSTs to the REDCap API (`/api/index.php`) with `content=record&format=csv&type=flat`.
 
@@ -318,27 +318,36 @@ export TF_VAR_redcap_project_id="42"
 terraform apply
 ```
 
-### 3 — Post-deploy: set the REDCap API token
+### 3 — Post-deploy: set REDCap API tokens
 
-The apply writes a placeholder token to Secrets Manager. Replace it before the first
-scheduled run:
+For each project in `redcap_projects`, the apply writes a placeholder token to Secrets
+Manager. Replace each one before the first scheduled run:
 
 ```bash
 aws secretsmanager put-secret-value \
-  --secret-id /clinical-registry/dev/redcap-api-token \
-  --secret-string '{"token":"<your-redcap-api-token>"}'
+  --secret-id /clinical-registry/dev/redcap-api-token/ovarian_cancer \
+  --secret-string '{"token":"<ovarian-cancer-api-token>"}'
+
+aws secretsmanager put-secret-value \
+  --secret-id /clinical-registry/dev/redcap-api-token/cardiac_surgery \
+  --secret-string '{"token":"<cardiac-surgery-api-token>"}'
 ```
+
+Skipped entirely in simulate mode — no projects means no secrets are created.
 
 ### 4 — Post-deploy: configure the registry map
 
-Add REDCap project IDs → registry names in `terraform.tfvars` and re-apply:
+Add REDCap project IDs → registry names in `terraform.tfvars` and re-apply so the
+transformation Lambda can route production exports to the right mapping module:
 
 ```hcl
 registry_map = {
-  "1001" = "ovarian_cancer"
-  "1002" = "cardiac_surgery"
+  "42" = "ovarian_cancer"
+  "17" = "cardiac_surgery"
 }
 ```
+
+The key must match the `project_id` value in `redcap_projects`.
 
 ### 5 — Verify with a simulate run
 

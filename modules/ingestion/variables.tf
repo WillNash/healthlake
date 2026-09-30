@@ -18,24 +18,13 @@ variable "kms_key_arn" {
   description = "ARN of the CMK from the security module used for S3, SQS, Lambda, and Secrets Manager encryption."
 }
 
-variable "redcap_url" {
-  type        = string
-  description = "Base URL of the REDCap instance (e.g. https://redcap.example.com). Must not include a trailing slash or /api/index.php path."
-}
-
-variable "redcap_project_id" {
-  type        = string
-  description = "REDCap project identifier; used in the S3 object key to distinguish exports from different projects."
-}
-
-variable "export_schedule_expression" {
-  type        = string
-  description = "EventBridge Scheduler cron or rate expression for the nightly REDCap export."
-  default     = "cron(0 2 * * ? *)"
-}
-
-variable "redcap_page_size" {
-  type        = number
-  description = "Number of REDCap records to export per paginated request."
-  default     = 5000
+variable "redcap_projects" {
+  type = map(object({
+    url                 = string
+    project_id          = string
+    schedule_expression = optional(string, "cron(0 2 * * ? *)")
+    page_size           = optional(number, 5000)
+  }))
+  description = "Map of registry name → REDCap project config. The key must match a registry name known to the mapper (either in _KNOWN or registry_map). Leave empty when using simulate mode only."
+  default     = {}
 }

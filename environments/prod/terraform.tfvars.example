@@ -1,13 +1,10 @@
 # environments/prod/terraform.tfvars.example
 #
 # Copy to terraform.tfvars and fill in the required values.
-# Do NOT commit terraform.tfvars — it contains sensitive values.
-# Add terraform.tfvars to .gitignore.
+# Do NOT commit terraform.tfvars — it is gitignored.
 #
-# Sensitive variables (redcap_url, redcap_project_id) should be passed
-# via environment variables to avoid storing them on disk:
-#   export TF_VAR_redcap_url="https://redcap.example.com"
-#   export TF_VAR_redcap_project_id="42"
+# redcap_projects is sensitive — set via TF_VAR_redcap_projects or keep it
+# in a separate gitignored file passed with -var-file.
 
 # ---------------------------------------------------------------------------
 # Required
@@ -15,19 +12,27 @@
 
 aws_region = "ap-southeast-2"
 
-# Set via TF_VAR_redcap_url — do not put the value here
-# redcap_url = ""
-
-# Set via TF_VAR_redcap_project_id — do not put the value here
-# redcap_project_id = ""
-
 # ---------------------------------------------------------------------------
 # Optional overrides (defaults shown)
 # ---------------------------------------------------------------------------
 
 project_name = "clinical-registry"
 
-# Map of REDCap project IDs to registry names.
-# registry_map = { "1001" = "ovarian_cancer", "1002" = "cardiac_surgery" }
+# Leave empty ({}) for simulate mode.
+# Add one entry per REDCap project when connecting live instances.
+# The key must match a registry name known to the mapper.
+#
+# redcap_projects = {
+#   ovarian_cancer = {
+#     url        = "https://redcap.hospital-a.com"
+#     project_id = "42"
+#   }
+#   cardiac_surgery = {
+#     url                 = "https://redcap.hospital-b.com"
+#     project_id          = "17"
+#     schedule_expression = "cron(0 3 * * ? *)"  # optional, defaults to 2 AM UTC
+#   }
+# }
 
-export_schedule_expression = "cron(0 2 * * ? *)"
+# Map of REDCap project IDs to registry names for the transformation side.
+# registry_map = { "42" = "ovarian_cancer", "17" = "cardiac_surgery" }

@@ -8,12 +8,10 @@ module "security" {
 module "ingestion" {
   source = "../../modules/ingestion"
 
-  project_name               = var.project_name
-  environment                = "prod"
-  kms_key_arn                = module.security.kms_key_arn
-  redcap_url                 = var.redcap_url
-  redcap_project_id          = var.redcap_project_id
-  export_schedule_expression = var.export_schedule_expression
+  project_name    = var.project_name
+  environment     = "prod"
+  kms_key_arn     = module.security.kms_key_arn
+  redcap_projects = var.redcap_projects
 }
 
 module "persistence" {

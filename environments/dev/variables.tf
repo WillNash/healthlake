@@ -23,22 +23,16 @@ variable "project_name" {
   default     = "clinical-registry"
 }
 
-variable "redcap_url" {
-  type        = string
-  description = "Base URL of the REDCap instance (e.g. https://redcap.example.com). Must not include a trailing slash."
+variable "redcap_projects" {
+  type = map(object({
+    url                 = string
+    project_id          = string
+    schedule_expression = optional(string, "cron(0 2 * * ? *)")
+    page_size           = optional(number, 5000)
+  }))
+  description = "Map of registry name → REDCap project config. Leave empty when using simulate mode only."
   sensitive   = true
-}
-
-variable "redcap_project_id" {
-  type        = string
-  description = "REDCap project identifier; used in S3 object key paths to distinguish exports from different projects."
-  sensitive   = true
-}
-
-variable "export_schedule_expression" {
-  type        = string
-  description = "EventBridge Scheduler cron or rate expression for the nightly REDCap export."
-  default     = "cron(0 2 * * ? *)"
+  default     = {}
 }
 
 variable "registry_map" {

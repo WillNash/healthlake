@@ -149,11 +149,12 @@ resource "aws_s3_bucket_notification" "landing" {
 }
 
 # ---------------------------------------------------------------------------
-# Secrets Manager — REDCap API token
+# Secrets Manager — per-project REDCap API tokens
 # ---------------------------------------------------------------------------
 
 resource "aws_secretsmanager_secret" "redcap_token" {
-  name       = "/${var.project_name}/${var.environment}/redcap-api-token"
+  for_each   = var.redcap_projects
+  name       = "/${var.project_name}/${var.environment}/redcap-api-token/${each.key}"
   kms_key_id = var.kms_key_arn
 
   lifecycle {
@@ -162,7 +163,8 @@ resource "aws_secretsmanager_secret" "redcap_token" {
 }
 
 resource "aws_secretsmanager_secret_version" "placeholder" {
-  secret_id     = aws_secretsmanager_secret.redcap_token.id
+  for_each      = var.redcap_projects
+  secret_id     = aws_secretsmanager_secret.redcap_token[each.key].id
   secret_string = jsonencode({ token = "REPLACE_ME" })
 
   lifecycle {
@@ -171,17 +173,17 @@ resource "aws_secretsmanager_secret_version" "placeholder" {
 }
 
 # ---------------------------------------------------------------------------
-# SQS DLQ — Lambda failure destination
+# SQS DLQ — shared across all project exporter Lambdas
 # ---------------------------------------------------------------------------
 
 resource "aws_sqs_queue" "redcap_exporter_dlq" {
-  name                       = "${var.project_name}-${var.environment}-redcap-exporter-dlq"
-  kms_master_key_id          = var.kms_key_arn
-  message_retention_seconds  = 1209600 # 14 days
+  name                      = "${var.project_name}-${var.environment}-redcap-exporter-dlq"
+  kms_master_key_id         = var.kms_key_arn
+  message_retention_seconds = 1209600 # 14 days
 }
 
 # ---------------------------------------------------------------------------
-# Lambda — REDCap exporter
+# Lambda — per-project REDCap exporter
 # ---------------------------------------------------------------------------
 
 data "archive_file" "redcap_exporter" {
@@ -191,7 +193,8 @@ data "archive_file" "redcap_exporter" {
 }
 
 resource "aws_lambda_function" "redcap_exporter" {
-  function_name = "${var.project_name}-${var.environment}-redcap-exporter"
+  for_each      = var.redcap_projects
+  function_name = "${var.project_name}-${var.environment}-redcap-exporter-${each.key}"
   role          = aws_iam_role.redcap_exporter.arn
 
   filename         = data.archive_file.redcap_exporter.output_path
@@ -203,24 +206,27 @@ resource "aws_lambda_function" "redcap_exporter" {
   timeout                        = 300
   memory_size                    = 512
   reserved_concurrent_executions = 1
-
-  kms_key_arn = var.kms_key_arn
+  kms_key_arn                    = var.kms_key_arn
 
   environment {
     variables = {
-      LANDING_BUCKET     = aws_s3_bucket.landing.id
-      SECRET_ARN         = aws_secretsmanager_secret.redcap_token.arn
-      REDCAP_URL         = var.redcap_url
-      REDCAP_PROJECT_ID  = var.redcap_project_id
-      PAGE_SIZE          = tostring(var.redcap_page_size)
-      KMS_KEY_ARN        = var.kms_key_arn
+      LANDING_BUCKET    = aws_s3_bucket.landing.id
+      SECRET_ARN        = aws_secretsmanager_secret.redcap_token[each.key].arn
+      REDCAP_URL        = each.value.url
+      REDCAP_PROJECT_ID = each.value.project_id
+      PAGE_SIZE         = tostring(each.value.page_size)
+      KMS_KEY_ARN       = var.kms_key_arn
     }
   }
 
+  dead_letter_config {
+    target_arn = aws_sqs_queue.redcap_exporter_dlq.arn
+  }
 }
 
 resource "aws_lambda_function_event_invoke_config" "redcap_exporter" {
-  function_name          = aws_lambda_function.redcap_exporter.function_name
+  for_each               = var.redcap_projects
+  function_name          = aws_lambda_function.redcap_exporter[each.key].function_name
   maximum_retry_attempts = 0
 
   destination_config {
@@ -231,7 +237,7 @@ resource "aws_lambda_function_event_invoke_config" "redcap_exporter" {
 }
 
 # ---------------------------------------------------------------------------
-# EventBridge Scheduler — nightly REDCap export trigger
+# EventBridge Scheduler — per-project nightly export trigger
 # ---------------------------------------------------------------------------
 
 resource "aws_scheduler_schedule_group" "main" {
@@ -239,17 +245,18 @@ resource "aws_scheduler_schedule_group" "main" {
 }
 
 resource "aws_scheduler_schedule" "redcap_export" {
-  name       = "redcap-export"
+  for_each   = var.redcap_projects
+  name       = "redcap-export-${each.key}"
   group_name = aws_scheduler_schedule_group.main.name
 
-  schedule_expression = var.export_schedule_expression
+  schedule_expression = each.value.schedule_expression
 
   flexible_time_window {
     mode = "OFF"
   }
 
   target {
-    arn      = aws_lambda_function.redcap_exporter.arn
+    arn      = aws_lambda_function.redcap_exporter[each.key].arn
     role_arn = aws_iam_role.scheduler.arn
   }
 }

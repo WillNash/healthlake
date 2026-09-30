@@ -18,39 +18,31 @@ resource "aws_iam_role" "redcap_exporter" {
 
 data "aws_iam_policy_document" "redcap_exporter_inline" {
   statement {
-    sid    = "AllowS3PutObject"
-    effect = "Allow"
-    actions = [
-      "s3:PutObject",
-    ]
+    sid     = "AllowS3PutObject"
+    effect  = "Allow"
+    actions = ["s3:PutObject"]
     resources = ["${aws_s3_bucket.landing.arn}/*"]
   }
 
   statement {
-    sid    = "AllowSecretsManagerGetToken"
-    effect = "Allow"
-    actions = [
-      "secretsmanager:GetSecretValue",
-    ]
-    resources = [aws_secretsmanager_secret.redcap_token.arn]
+    sid     = "AllowSecretsManagerGetToken"
+    effect  = "Allow"
+    actions = ["secretsmanager:GetSecretValue"]
+    # Wildcard scoped to this project+environment — covers all per-project secrets.
+    resources = ["arn:aws:secretsmanager:*:*:secret:/${var.project_name}/${var.environment}/redcap-api-token/*"]
   }
 
   statement {
-    sid    = "AllowKmsForLandingBucketAndEnvVars"
-    effect = "Allow"
-    actions = [
-      "kms:GenerateDataKey",
-      "kms:Decrypt",
-    ]
+    sid     = "AllowKmsForLandingBucketAndEnvVars"
+    effect  = "Allow"
+    actions = ["kms:GenerateDataKey", "kms:Decrypt"]
     resources = [var.kms_key_arn]
   }
 
   statement {
-    sid    = "AllowSqsSendMessageToDlq"
-    effect = "Allow"
-    actions = [
-      "sqs:SendMessage",
-    ]
+    sid     = "AllowSqsSendMessageToDlq"
+    effect  = "Allow"
+    actions = ["sqs:SendMessage"]
     resources = [aws_sqs_queue.redcap_exporter_dlq.arn]
   }
 }
@@ -98,12 +90,11 @@ resource "aws_iam_role" "scheduler" {
 
 data "aws_iam_policy_document" "scheduler_inline" {
   statement {
-    sid    = "AllowInvokeLambda"
-    effect = "Allow"
-    actions = [
-      "lambda:InvokeFunction",
-    ]
-    resources = [aws_lambda_function.redcap_exporter.arn]
+    sid     = "AllowInvokeLambda"
+    effect  = "Allow"
+    actions = ["lambda:InvokeFunction"]
+    # Wildcard scoped to this project+environment — covers all per-project exporter Lambdas.
+    resources = ["arn:aws:lambda:*:*:function:${var.project_name}-${var.environment}-redcap-exporter-*"]
   }
 }
 
