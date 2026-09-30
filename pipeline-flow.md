@@ -293,17 +293,11 @@ terraform init
 terraform apply -var="project_name=clinical-registry" -var="environment=dev"
 ```
 
-Copy the outputs into `environments/dev/versions.tf`:
+Copy the outputs into `environments/dev/backend.hcl` (created from the example):
 
-```hcl
-backend "s3" {
-  bucket         = "<tfstate_bucket_name>"
-  key            = "dev/terraform.tfstate"
-  region         = "ap-southeast-2"
-  dynamodb_table = "<dynamodb_lock_table_name>"
-  kms_key_id     = "<kms_key_arn>"
-  encrypt        = true
-}
+```bash
+cp environments/dev/backend.hcl.example environments/dev/backend.hcl
+# edit backend.hcl with the bootstrap output values
 ```
 
 ### 2 — Environment apply
@@ -311,7 +305,7 @@ backend "s3" {
 ```bash
 cd environments/dev
 cp terraform.tfvars.example terraform.tfvars   # then edit
-terraform init
+terraform init -backend-config=backend.hcl
 terraform apply
 ```
 

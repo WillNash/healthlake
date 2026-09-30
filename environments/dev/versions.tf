@@ -13,13 +13,9 @@ terraform {
   }
 
   backend "s3" {
-    # Fill in after bootstrap apply:
-    # bucket         = "<tfstate_bucket_name from bootstrap output>"
-    # key            = "dev/terraform.tfstate"
-    # region         = "<aws_region>"
-    # dynamodb_table = "<dynamodb_lock_table_name from bootstrap output>"
-    # kms_key_id     = "<kms_key_arn from bootstrap output>"
-    # encrypt        = true
+    # Values are supplied via backend.hcl (gitignored).
+    # See environments/dev/backend.hcl.example.
+    # Init with: terraform init -backend-config=backend.hcl
   }
 }
 

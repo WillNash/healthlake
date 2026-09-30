@@ -1,0 +1,9 @@
+# Copy to backend.hcl and fill in values from `terraform -chdir=bootstrap output`.
+# backend.hcl is gitignored — do not commit it.
+
+bucket         = "<tfstate_bucket_name>"
+key            = "dev/terraform.tfstate"
+region         = "<aws_region>"
+dynamodb_table = "<dynamodb_lock_table_name>"
+kms_key_id     = "<kms_key_arn>"
+encrypt        = true

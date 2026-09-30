@@ -1,0 +1,18 @@
+# Terraform local state and cache — never commit
+.terraform/
+*.tfstate
+*.tfstate.backup
+
+# Backend config contains account-specific resource identifiers (bucket, KMS ARN)
+backend.hcl
+
+# tfvars may contain sensitive values (redcap_url, redcap_project_id, etc.)
+terraform.tfvars
+
+# Lambda zip artefacts built by archive_file — reproducible from source
+*.zip
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
