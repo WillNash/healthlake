@@ -118,6 +118,15 @@ resource "aws_iam_role_policy" "import_launcher" {
         Resource = [var.datastore_arn]
       },
       {
+        Sid      = "PassRoleToHealthLake"
+        Effect   = "Allow"
+        Action   = ["iam:PassRole"]
+        Resource = [var.healthlake_data_access_role_arn]
+        Condition = {
+          StringEquals = { "iam:PassedToService" = "healthlake.amazonaws.com" }
+        }
+      },
+      {
         Sid      = "WriteImportOutput"
         Effect   = "Allow"
         Action   = ["s3:PutObject"]
