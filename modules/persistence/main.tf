@@ -194,7 +194,7 @@ resource "aws_s3_bucket_versioning" "import_output" {
   bucket = aws_s3_bucket.import_output.id
 
   versioning_configuration {
-    status = "Enabled"
+    status = "Suspended"
   }
 }
 
