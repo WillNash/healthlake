@@ -4,8 +4,8 @@ output "datastore_id" {
 }
 
 output "datastore_arn" {
-  description = "ARN of the HealthLake FHIR R4 datastore. Empty string when healthlake_enabled is false."
-  value       = var.healthlake_enabled ? awscc_healthlake_fhir_datastore.main[0].datastore_arn : ""
+  description = "ARN of the HealthLake FHIR R4 datastore. Returns \"*\" when healthlake_enabled is false so downstream IAM policies remain valid."
+  value       = var.healthlake_enabled ? awscc_healthlake_fhir_datastore.main[0].datastore_arn : "*"
 }
 
 output "datastore_endpoint" {
