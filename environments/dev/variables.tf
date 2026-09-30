@@ -31,7 +31,6 @@ variable "redcap_projects" {
     page_size           = optional(number, 5000)
   }))
   description = "Map of registry name → REDCap project config. Leave empty when using simulate mode only."
-  sensitive   = true
   default     = {}
 }
 
