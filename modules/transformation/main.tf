@@ -394,6 +394,11 @@ resource "aws_sfn_state_machine" "import_orchestrator" {
           },
           {
             Variable     = "$.poll_result.Payload.status"
+            StringEquals = "COMPLETED_WITH_ERRORS"
+            Next         = "WriteWatermark"
+          },
+          {
+            Variable     = "$.poll_result.Payload.status"
             StringEquals = "FAILED"
             Next         = "NotifyFailure"
           }
