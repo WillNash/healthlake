@@ -40,5 +40,6 @@ module "transformation" {
   landing_bucket_arn              = module.ingestion.landing_bucket_arn
   import_output_bucket_name       = module.persistence.import_output_bucket_name
   healthlake_data_access_role_arn = module.persistence.healthlake_data_access_role_arn
+  healthlake_kms_key_arn          = module.persistence.healthlake_kms_key_arn
   registry_map                    = var.registry_map
 }

@@ -53,6 +53,11 @@ variable "healthlake_data_access_role_arn" {
   description = "ARN of the IAM role that HealthLake assumes when reading input data and writing import output."
 }
 
+variable "healthlake_kms_key_arn" {
+  type        = string
+  description = "ARN of the dedicated KMS key used by the HealthLake datastore and import output bucket. Passed to StartFHIRImportJob as the job output encryption key."
+}
+
 variable "registry_map" {
   type        = map(string)
   description = "Map of REDCap project IDs to registry names (e.g. {\"1001\" = \"ovarian_cancer\"}). Used by csv_to_fhir_mapper to dispatch to the correct mapping module. Leave empty when using simulation paths."

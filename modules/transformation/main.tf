@@ -207,7 +207,7 @@ resource "aws_lambda_function" "import_launcher" {
     variables = {
       DATASTORE_ID         = var.datastore_id
       IMPORT_OUTPUT_BUCKET = var.import_output_bucket_name
-      KMS_KEY_ARN          = var.kms_key_arn
+      KMS_KEY_ARN          = var.healthlake_kms_key_arn
       DATA_ACCESS_ROLE_ARN = var.healthlake_data_access_role_arn
     }
   }

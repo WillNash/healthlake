@@ -139,6 +139,12 @@ resource "aws_iam_role_policy" "import_launcher" {
         Resource = [var.kms_key_arn]
       },
       {
+        Sid      = "HealthLakeKMS"
+        Effect   = "Allow"
+        Action   = ["kms:GenerateDataKey", "kms:Decrypt"]
+        Resource = [var.healthlake_kms_key_arn]
+      },
+      {
         Sid      = "Logs"
         Effect   = "Allow"
         Action   = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"]
