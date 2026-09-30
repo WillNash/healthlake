@@ -161,7 +161,7 @@ def _map_monthly(record_id: str, row: dict) -> list:
             continue
         try:
             resources.append(observation(
-                resource_id=f"observation-{field}-{suffix}",
+                resource_id=f"observation-{field.replace('_', '-')}-{suffix}",
                 nhi=record_id,
                 loinc_code=loinc,
                 display=display,
