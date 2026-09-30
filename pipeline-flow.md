@@ -7,19 +7,54 @@ End-to-end trace of what happens when a REDCap CSV export lands in the pipeline.
 ## Data flow overview
 
 ```
-S3 landing bucket
-  └─ Object Created event → EventBridge
-       └─ EventBridge rule → Step Functions execution
-            ├─ csv_to_fhir_mapper Lambda
-            │    ├─ reads CSV from landing bucket
-            │    ├─ detects registry from S3 key
-            │    ├─ runs mapping module (row-by-row → FHIR dicts)
-            │    └─ writes NDJSON to fhir_staging bucket
-            ├─ import_launcher Lambda
-            │    └─ calls HealthLake start_fhir_import_job
-            ├─ [60s wait loop via import_poller]
-            └─ HealthLake datastore (FHIR R4 resources queryable)
+EventBridge Scheduler (nightly cron)
+  └─ redcap_exporter Lambda
+       └─ REDCap API → CSV → S3 landing bucket
+            └─ Object Created event → EventBridge
+                 └─ EventBridge rule → Step Functions execution
+                      ├─ csv_to_fhir_mapper Lambda
+                      │    ├─ reads CSV from landing bucket
+                      │    ├─ detects registry from S3 key
+                      │    ├─ runs mapping module (row-by-row → FHIR dicts)
+                      │    └─ writes NDJSON to fhir_staging bucket
+                      ├─ import_launcher Lambda
+                      │    └─ calls HealthLake start_fhir_import_job
+                      ├─ [60s wait loop via import_poller]
+                      └─ HealthLake datastore (FHIR R4 resources queryable)
 ```
+
+---
+
+## Step 0 — REDCap exporter runs on schedule
+
+EventBridge Scheduler fires the `redcap_exporter` Lambda on the configured cron
+(`export_schedule_expression` — default `cron(0 2 * * ? *)`, 2 AM UTC daily).
+
+### Inside the Lambda (`modules/ingestion/lambda/redcap_exporter/handler.py`)
+
+1. Retrieves the REDCap API token from Secrets Manager
+   (`/<project_name>/<env>/redcap-api-token`).
+
+2. POSTs to the REDCap API (`/api/index.php`) with `content=record&format=csv&type=flat`.
+
+3. Writes the CSV response to the landing bucket at:
+   ```
+   redcap-exports/<YYYY>/<MM>/<DD>/<HHMMSS>-<project_id>.csv
+   ```
+
+4. Returns `{"bucket": "<name>", "key": "<key>"}` — not consumed downstream; the
+   EventBridge S3 notification triggers the next stage independently.
+
+The Lambda has `maximum_retry_attempts = 0` (no async retry). Failures land on the
+`redcap-exporter-dlq` SQS queue (`modules/ingestion/main.tf`).
+
+> **First-time setup:** The placeholder token `{"token": "REPLACE_ME"}` is written to
+> Secrets Manager on first apply. Update it manually before the first scheduled run:
+> ```
+> aws secretsmanager put-secret-value \
+>   --secret-id /<project_name>/<env>/redcap-api-token \
+>   --secret-string '{"token":"<your-redcap-api-token>"}'
+> ```
 
 ---
 
@@ -232,8 +267,9 @@ To add a new registry: implement `mappings/<name>.py`, add the name to `_KNOWN` 
 
 | File | Role |
 |---|---|
-| `modules/ingestion/main.tf` | Landing bucket + EventBridge notification |
-| `modules/transformation/main.tf` | EventBridge rule, SFN state machine definition, all Lambda functions |
+| `modules/ingestion/main.tf` | Landing bucket, EventBridge notification, Scheduler, redcap_exporter Lambda |
+| `modules/ingestion/lambda/redcap_exporter/handler.py` | REDCap API export → S3 |
+| `modules/transformation/main.tf` | EventBridge rule, SFN state machine definition, all transformation Lambdas |
 | `modules/transformation/iam.tf` | IAM roles and policies for all Lambdas and SFN |
 | `modules/transformation/lambda/csv_to_fhir_mapper/handler.py` | Registry detection, CSV → NDJSON |
 | `modules/transformation/lambda/csv_to_fhir_mapper/fhir_builder.py` | FHIR resource constructors |
@@ -242,3 +278,82 @@ To add a new registry: implement `mappings/<name>.py`, add the name to `_KNOWN` 
 | `modules/transformation/lambda/import_poller/handler.py` | Import job status polling |
 | `modules/persistence/main.tf` | HealthLake datastore, import output bucket |
 | `simulate/inject.sh` | Upload a simulate CSV to trigger the pipeline manually |
+
+---
+
+## Deploying
+
+### 1 — Bootstrap (once per account/environment)
+
+Creates the Terraform state S3 bucket, DynamoDB lock table, and KMS key.
+
+```bash
+cd bootstrap
+terraform init
+terraform apply -var="project_name=clinical-registry" -var="environment=dev"
+```
+
+Copy the outputs into `environments/dev/versions.tf`:
+
+```hcl
+backend "s3" {
+  bucket         = "<tfstate_bucket_name>"
+  key            = "dev/terraform.tfstate"
+  region         = "ap-southeast-2"
+  dynamodb_table = "<dynamodb_lock_table_name>"
+  kms_key_id     = "<kms_key_arn>"
+  encrypt        = true
+}
+```
+
+### 2 — Environment apply
+
+```bash
+cd environments/dev
+cp terraform.tfvars.example terraform.tfvars   # then edit
+terraform init
+terraform apply
+```
+
+Sensitive variables (`redcap_url`, `redcap_project_id`) should be passed via
+environment variables rather than committed to `terraform.tfvars`:
+
+```bash
+export TF_VAR_redcap_url="https://redcap.example.com"
+export TF_VAR_redcap_project_id="42"
+terraform apply
+```
+
+### 3 — Post-deploy: set the REDCap API token
+
+The apply writes a placeholder token to Secrets Manager. Replace it before the first
+scheduled run:
+
+```bash
+aws secretsmanager put-secret-value \
+  --secret-id /clinical-registry/dev/redcap-api-token \
+  --secret-string '{"token":"<your-redcap-api-token>"}'
+```
+
+### 4 — Post-deploy: configure the registry map
+
+Add REDCap project IDs → registry names in `terraform.tfvars` and re-apply:
+
+```hcl
+registry_map = {
+  "1001" = "ovarian_cancer"
+  "1002" = "cardiac_surgery"
+}
+```
+
+### 5 — Verify with a simulate run
+
+```bash
+BUCKET=$(terraform -chdir=environments/dev output -raw landing_bucket_name)
+./simulate/inject.sh heartland_hf $BUCKET
+
+# Watch the Step Functions execution
+aws stepfunctions list-executions \
+  --state-machine-arn $(terraform -chdir=environments/dev output -raw import_orchestrator_sfn_arn) \
+  --query 'executions[0]'
+```

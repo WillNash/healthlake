@@ -13,6 +13,9 @@ BUCKET=$(terraform -chdir=environments/dev output -raw landing_bucket_name)
 
 # Inject a cardiac surgery registry export
 ./simulate/inject.sh cardiac_surgery $BUCKET
+
+# Inject a heart failure registry export (repeating instruments)
+./simulate/inject.sh heartland_hf $BUCKET
 ```
 
 `inject.sh` uploads the CSV to `s3://<bucket>/redcap-exports/<registry>/<timestamp>-sim.csv`.
@@ -22,7 +25,7 @@ execution, which runs the mapper → HealthLake import chain.
 ## How registry detection works
 
 The mapper detects the registry from the S3 key path. When the second path segment
-matches a known registry name (`ovarian_cancer`, `cardiac_surgery`), that name is used
+matches a known registry name (`ovarian_cancer`, `cardiac_surgery`, `heartland_hf`), that name is used
 directly. This is the simulation path.
 
 In production, the REDCap exporter writes keys like
@@ -44,6 +47,7 @@ registry_map = {
 |---|---|---|---|
 | Ovarian cancer | `registries/ovarian_cancer/export.csv` | 5 | NHI prefix ZZZ, clearly synthetic |
 | Cardiac surgery | `registries/cardiac_surgery/export.csv` | 5 | NHI prefix ZZZ, clearly synthetic |
+| Heart failure (HEARTLAND) | `registries/heartland_hf/export.csv` | 20 patients, 64 rows | Repeating instruments — 40 baseline rows + 24 monthly follow-up rows |
 
 All records use NHI numbers with the `ZZZ` prefix, which is not allocated by the
 NHI authority and cannot collide with real patients.

@@ -21,7 +21,7 @@
 #
 # Monitor progress:
 #   aws stepfunctions list-executions \
-#     --state-machine-arn $(terraform -chdir=environments/dev output -raw sfn_state_machine_arn) \
+#     --state-machine-arn $(terraform -chdir=environments/dev output -raw import_orchestrator_sfn_arn) \
 #     --query 'executions[0]'
 
 set -euo pipefail
@@ -59,4 +59,4 @@ echo "Upload complete. The Step Functions execution should start within ~30 seco
 echo ""
 echo "To watch executions:"
 echo "  aws stepfunctions list-executions \\"
-echo "    --state-machine-arn \$(terraform -chdir=environments/dev output -raw sfn_state_machine_arn)"
+echo "    --state-machine-arn \$(terraform -chdir=environments/dev output -raw import_orchestrator_sfn_arn)"
