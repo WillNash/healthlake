@@ -205,7 +205,7 @@ Invokes the `import_poller` Lambda with `Payload.$: "$.import_result.Payload"`.
 }
 ```
 
-Possible status values: `SUBMITTED`, `IN_PROGRESS`, `COMPLETED`, `FAILED`.
+Possible status values: `SUBMITTED`, `IN_PROGRESS`, `COMPLETED`, `COMPLETED_WITH_ERRORS`, `FAILED`.
 
 ---
 
@@ -215,7 +215,8 @@ A `Choice` state — no Lambda invocation, pure Step Functions logic:
 
 | `$.poll_result.Payload.status` | Next state |
 |---|---|
-| `COMPLETED` | `ImportComplete` |
+| `COMPLETED` | `WriteWatermark` |
+| `COMPLETED_WITH_ERRORS` | `WriteWatermark` (per-resource failures checked downstream) |
 | `FAILED` | `NotifyFailure` |
 | `SUBMITTED` or `IN_PROGRESS` | `WaitForImport` (loops back to step 5) |
 
@@ -223,9 +224,19 @@ The 60-second wait-and-poll loop repeats until the job reaches a terminal status
 
 ---
 
-## Step 8a — ImportComplete
+## Step 8a — WriteWatermark → CheckResourceFailures → ImportComplete
 
-A `Succeed` terminal state. Execution ends normally.
+1. **WriteWatermark** — writes the current timestamp to SSM Parameter Store at
+   `/pipeline/<project_name>/<env>/<registry>/bulk_complete_at`. Used as a cursor
+   for future incremental exports.
+
+2. **CheckResourceFailures** — invokes the `check_import_failures` Lambda, which reads
+   the `FAILURE/` NDJSON from the import output bucket and returns a count and sample
+   of rejected resources. On `COMPLETED` (no failures) this file is absent and the
+   Lambda returns a zero count. On `COMPLETED_WITH_ERRORS` it surfaces which resources
+   were rejected and why.
+
+3. **ImportComplete** — a `Succeed` terminal state. Execution ends normally.
 
 The FHIR resources are now in the HealthLake datastore and queryable via the FHIR
 REST API endpoint (`modules/persistence/outputs.tf: datastore_endpoint`).
@@ -349,7 +360,29 @@ registry_map = {
 
 The key must match the `project_id` value in `redcap_projects`.
 
-### 5 — Verify with a simulate run
+### 5 — Managing dev costs (pausing HealthLake)
+
+HealthLake charges **$0.27/hour** (~$194/month) from the moment the datastore exists,
+regardless of usage. It cannot be paused — only deleted. The `healthlake_enabled`
+variable controls this without touching the S3 buckets, KMS key, or IAM roles.
+
+**Stop billing:**
+```bash
+terraform -chdir=environments/dev apply -var healthlake_enabled=false
+```
+
+**Resume (datastore recreates in ~5 minutes, then reload test data):**
+```bash
+terraform -chdir=environments/dev apply
+BUCKET=$(terraform -chdir=environments/dev output -raw landing_bucket_name)
+./simulate/inject.sh heartland_hf $BUCKET
+```
+
+> Data in the datastore is permanently lost on deletion. For dev this is acceptable —
+> re-run `inject.sh` to restore the simulated dataset. For prod, run a
+> `StartFHIRExportJob` to S3 before setting `healthlake_enabled = false`.
+
+### 6 — Verify with a simulate run
 
 ```bash
 BUCKET=$(terraform -chdir=environments/dev output -raw landing_bucket_name)

@@ -24,6 +24,7 @@ module "persistence" {
 
   project_name       = var.project_name
   environment        = "dev"
+  healthlake_enabled = var.healthlake_enabled
   landing_bucket_arn = module.ingestion.landing_bucket_arn
 }
 

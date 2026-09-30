@@ -13,6 +13,12 @@ variable "environment" {
   }
 }
 
+variable "healthlake_enabled" {
+  type        = bool
+  description = "When false the HealthLake datastore is destroyed (and not recreated) to stop the hourly charge. S3 buckets and KMS key are unaffected."
+  default     = true
+}
+
 variable "landing_bucket_arn" {
   type        = string
   description = "ARN of the S3 landing bucket from the ingestion module. Granted to the HealthLake data access role for import jobs."

@@ -34,6 +34,12 @@ variable "redcap_projects" {
   default     = {}
 }
 
+variable "healthlake_enabled" {
+  type        = bool
+  description = "Set to false to destroy the HealthLake datastore and stop the hourly charge. Re-run inject.sh to reload data after re-enabling."
+  default     = true
+}
+
 variable "registry_map" {
   type        = map(string)
   description = "Map of REDCap project IDs to registry names. Populate once live project IDs are known (e.g. {\"1001\" = \"ovarian_cancer\"})."

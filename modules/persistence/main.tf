@@ -55,6 +55,8 @@ resource "aws_kms_alias" "healthlake" {
 # ---------------------------------------------------------------------------
 
 resource "awscc_healthlake_fhir_datastore" "main" {
+  count = var.healthlake_enabled ? 1 : 0
+
   datastore_name         = "${var.project_name}-${var.environment}"
   datastore_type_version = "R4"
 
@@ -73,7 +75,6 @@ resource "awscc_healthlake_fhir_datastore" "main" {
   ]
 
   lifecycle {
-    prevent_destroy = true
     # preload_data_config always shows as "known after apply" even when unset —
     # a CloudFormation schema limitation. ignore_changes prevents forced replacement.
     ignore_changes = [preload_data_config]
