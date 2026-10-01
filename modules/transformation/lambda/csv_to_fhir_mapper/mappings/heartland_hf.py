@@ -59,6 +59,8 @@ def map_row(row: dict) -> list:
     repeat = row.get("redcap_repeat_instrument", "").strip()
 
     if not repeat:
+        if not row.get("enr_date", "").strip():
+            return []
         return _map_baseline(record_id, row)
     if repeat == "monthly_followup":
         return _map_monthly(record_id, row)
